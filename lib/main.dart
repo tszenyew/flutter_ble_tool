@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_ble_tool/Screen/BLE2Controller.dart';
-import 'package:flutter_ble_tool/Screen/BLE5Controller.dart';
+import 'package:flutter_ble_tool/Screen/BLE2Page.dart';
+import 'package:flutter_ble_tool/Screen/BLE5Page.dart';
 
 void main() => runApp(MyApp());
 

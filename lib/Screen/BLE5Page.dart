@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import "package:flutter/material.dart";
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_blue/flutter_blue.dart';
-import 'package:flutter_ble_tool/Model/obj_BLE.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter_ble_tool/Model/BLEController.dart';
+import 'package:flutter_ble_tool/Screen/BLE2Page.dart';
 
 Function updateMsgText;
 
@@ -15,43 +19,17 @@ class BLE5Controller extends StatefulWidget {
 class PageBLE5 extends State<BLE5Controller> {
   //var
   bool isLock = false;
-  DeviceList2 deviceList;
   String msg = "Disconnected";
   BleObj obj = BleObj.internal();
   String action = "Lock Gate";
-
-  @override
-  void initState() {
-    updateMsgText = updateMsg;
-    super.initState();
-  }
-
-  void updateParent() {
-    setState(() {});
-  }
-
-  void updateMsg(String text) {
-    msg = text;
-    updateParent();
-  }
-
-  List<DropdownMenuItem<String>> getDropDownItems() {
-    return ["A", "B"].map<DropdownMenuItem<String>>((String val) {
-      return DropdownMenuItem<String>(
-        value: val,
-        child: Text(
-          val.toString(),
-        ),
-      );
-    }).toList();
-  }
+  bool _resting = false;
+  List<BluetoothDevice> bleDevices;
+  StreamSubscription<BluetoothDeviceState> bleSub;
 
   //build
   @override
   Widget build(BuildContext context) {
-    if (deviceList == null) {
-      deviceList = DeviceList2(parent: this);
-    }
+    bleDevices = obj.getDeviceList();
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
@@ -88,7 +66,27 @@ class PageBLE5 extends State<BLE5Controller> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Container(height: 300, child: deviceList),
+              Container(
+                height: 300,
+                child: ListView.builder(
+                  itemCount: bleDevices.length,
+                  itemBuilder: (BuildContext context, int pos) {
+                    return GestureDetector(
+                      onTap: () {
+                        connectDevice(pos);
+                      },
+                      child: Card(
+                        color: Colors.white,
+                        elevation: 2,
+                        child: ListTile(
+                          title: Text(bleDevices[pos].name),
+                          subtitle: Text(bleDevices[pos].id.toString()),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
               SizedBox(
                 height: 15,
               ),
@@ -175,13 +173,11 @@ class PageBLE5 extends State<BLE5Controller> {
                         ),
                       ),
                       onPressed: (obj.isWritingChar || !obj.isConnected)
-                          ? null
+                          ? () {
+                              obj.getCmd(action);
+                            }
                           : () {
-                              updateMsg("Sending Action to device...");
-                              obj.sendAction().then((result) {
-                                updateMsg("Done");
-                              });
-                              setState(() {});
+                              sendUserAction();
                             },
                     ),
                   ]),
@@ -202,71 +198,54 @@ class PageBLE5 extends State<BLE5Controller> {
   }
 
   //function
+  @override
+  void initState() {
+    updateMsgText = updateMsg;
+    super.initState();
+  }
+
+  void updateParent() {
+    setState(() {});
+  }
+
+  void updateMsg(String text) {
+    msg = text;
+    updateParent();
+  }
+
+  void restNow() {
+    _resting = true;
+    new Timer(const Duration(seconds: 2), () => _resting = false);
+  }
+
+  void sendUserAction() {
+    if (_resting) {
+      Fluttertoast.showToast(
+          msg: "Please wait 2 seconds before sending another action");
+    } else {
+      restNow();
+      //obj.getCmd(action);
+      updateMsg("Sending Action to device...");
+      obj.sendAction(action).then((result) {
+        updateMsg("Done");
+      });
+      setState(() {});
+    }
+  }
 
   void startScanning(BuildContext context) {
     updateMsg("Scanning for Device...");
     obj.startScan().then((result) {
-      deviceList.deviceListState.updateListView();
       updateMsg("Num of devices : " + result.length.toString());
     });
     setState(() {});
   }
 
   void disconnect() {
-    if (obj.isConnected) {
-      obj.disconnect();
+    bleSub?.cancel();
+    if (obj.disconnect()) {
       updateMsg("Disconnected");
     }
-  }
-}
-
-class DeviceList2 extends StatefulWidget {
-  final PageBLE5 parent;
-
-  final DeviceListState2 deviceListState = DeviceListState2();
-
-  DeviceList2({Key key, @required this.parent}) : super(key: key);
-
-  @override
-  State<StatefulWidget> createState() {
-    deviceListState.parent = parent;
-    return deviceListState;
-  }
-}
-
-class DeviceListState2 extends State<DeviceList2> {
-  PageBLE5 parent;
-  BleObj obj = BleObj.internal();
-  BuildContext bcontext;
-  List<BluetoothDevice> bleDevices;
-
-  @override
-  Widget build(BuildContext context) {
-    bleDevices = obj.getDeviceList();
-    bcontext = context;
-    return ListView.builder(
-      itemCount: bleDevices.length,
-      itemBuilder: (BuildContext context, int pos) {
-        return GestureDetector(
-          onTap: () {
-            connectDevice(pos);
-          },
-          child: Card(
-            color: Colors.white,
-            elevation: 2,
-            child: ListTile(
-              title: Text(bleDevices[pos].name),
-              subtitle: Text(bleDevices[pos].id.toString()),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // function
-  void updateListView() {
-    setState(() {});
   }
 
   void connectDevice(int pos) {
@@ -274,6 +253,19 @@ class DeviceListState2 extends State<DeviceList2> {
     updateMsgText("Connecting to " + device.name + "...");
     obj.connectToDevice(device).then((result) {
       updateMsgText("Connected to " + device.name);
+      if (result) {
+        listenNow();
+      }
+    });
+    setState(() {});
+  }
+
+  void listenNow() {
+    bleSub = obj.selectedDevice.state.listen((status) {
+      if (status.index == 0) {
+        updateMsgText("Disconnected");
+        bleSub.cancel();
+      }
     });
   }
 }
