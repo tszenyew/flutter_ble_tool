@@ -5,8 +5,6 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:flutter_ble_tool/Model/BLEController.dart';
 
-Function updateMsgText;
-
 class BLE2Controller extends StatefulWidget {
   @override
   State<StatefulWidget> createState() {
@@ -155,7 +153,6 @@ class PageBLE2 extends State<BLE2Controller> {
   //function
   @override
   void initState() {
-    updateMsgText = updateMsg;
     super.initState();
   }
 
@@ -189,9 +186,11 @@ class PageBLE2 extends State<BLE2Controller> {
     obj.startScan().then((result) {
       if (!result) {
         updateMsg("Disconnected");
+      } else {
+        updateMsg("Num of devices : " + obj.getDeviceList().length.toString());
       }
-      updateMsg("Num of devices : " + result.length.toString());
     });
+    setState(() {});
   }
 
   void disconnect() {
@@ -203,9 +202,9 @@ class PageBLE2 extends State<BLE2Controller> {
 
   void connectDevice(int pos) {
     var device = bleDevices[pos];
-    updateMsgText("Connecting to " + device.name + "...");
+    updateMsg("Connecting to " + device.name + "...");
     obj.connectToDevice(device).then((result) {
-      updateMsgText("Connected to " + device.name);
+      updateMsg("Connected to " + device.name);
       if (result) {
         listenNow();
       }
@@ -216,7 +215,7 @@ class PageBLE2 extends State<BLE2Controller> {
   void listenNow() {
     bleSub = obj.selectedDevice.state.listen((status) {
       if (status.index == 0) {
-        updateMsgText("Disconnected");
+        updateMsg("Disconnected");
         bleSub.cancel();
       }
     });

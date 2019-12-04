@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:encrypt/encrypt.dart';
+import 'package:pointycastle/export.dart';
+import 'package:convert/convert.dart';
+import 'dart:convert';
 
 class BleObj {
   //var
@@ -17,24 +19,62 @@ class BleObj {
   static StreamSubscription<List<ScanResult>> scanSub;
   static StreamSubscription<BluetoothDeviceState> bleSub;
   static List<BluetoothDevice> devices = [];
-  static BluetoothDevice bleDeviceSelected;
+  static BluetoothDevice _selectedDevice;
   static List<BluetoothService> bleService;
   static BluetoothService selectedBleService;
   static List<BluetoothCharacteristic> bleCharacteristic;
   static BluetoothCharacteristic selectedbleChar;
   static int currentState = -1;
   static final BleObj _bleObj = new BleObj.internal();
-  var encryptor =
-      Encrypter(AES(Key(_createUint8ListFromHexString(_encryptionKey))));
-  var iv = IV(_createUint8ListFromHexString(_encryptionIV));
+  //var encryptor = Encrypter(AES(Key.fromBase16(_encryptionKey), mode: AESMode.cbc));
+  //var iv = IV.fromBase16(_encryptionIV);
   static final String _encryptionKey =
       "15135A26471B59561B3B213D5B0C600215212141411F013B100637053D172403";
   static final String _encryptionIV = "da2b282b6331ae40cb927a51411c5b14";
 
-  String _actUnlock = "Unlock Gate",
-      actLock = "Lock Gate",
-      actSiren = "Siren On",
-      actSirenOff = "Siren Off";
+  static const String _actBle2 = "BLE2",
+      _actUnlock = "Unlock Gate",
+      _actLock = "Lock Gate",
+      _actSiren = "Siren On",
+      _actSirenOff = "Siren Off",
+      _actSetDoorConfig = "Set Door Config",
+      _actClearSiren = "Clear Siren",
+      _actSetSiren = "Set Siren",
+      // _actclearSchedule = "Clear Schedule",
+      // _actsetSchedule = "Set Schedule",
+      // _actclearHoliday = "Clear Holiday",
+      // _actsetHoliday = "Set Holiday",
+      // _actclearWifiSSID = "Clear WifiSSID",
+      // _actsetWifiSSID = "Set WifiSSID",
+      // _actclearWifiPassword = "Clear WifiPassword",
+      // _actsetWifiPassword = "Set WifiPassword",
+      _actclearDateTime = "Clear DateTime",
+      _actsetDateTime = "Set DateTime" //,
+      // _actenableFCU = "Enable FCU",
+      // _actdisableFCU = "Disable FCU"
+      ;
+
+  static const Map<String, String> _actionKeyItems = {
+    _actUnlock: "[B5,01,00,yy,MM,dd,hh,mm,00,00,00,00,00,00,00,00]",
+    _actLock: "[B5,01,01,yy,MM,dd,hh,mm,00,00,00,00,00,00,00,00]",
+    _actSiren: "[B5,02,01,yy,MM,dd,hh,mm,00,00,00,00,00,00,00,00]",
+    _actSirenOff: "[B5,02,00,yy,MM,dd,hh,mm,00,00,00,00,00,00,00,00]",
+    _actSetDoorConfig: "[B5,03,01,03,20,03,20,03,20,00,00,00,00,00,00,00]",
+    _actClearSiren: "[B5,03,00,00,00,00,00,00,00,00,00,00,00,00,00,00]",
+    _actSetSiren: "[B5,03,01,00,C8,04,B0,09,C4,00,00,00,00,00,00,00]",
+    // _actclearSchedule :"[B5,04,00,01,01,15,20,15,30,00,00,00,00,00,00,00]";
+    // _actsetSchedule :"[B5,04,01,01,01,15,16,15,17,00,00,00,00,00,00,00]",
+    // _actclearHoliday :"[B5,05,00,00,00,00,00,00,00,00,00,00,00,00,00,00]",
+    // _actsetHoliday :"[B5,05,01,01,19,08,31,00,00,00,00,00,00,00,00,00]",
+    // _actclearWifiSSID :"[B5,06,00,00,00,00,00,00,00,00,00,00,00,00,00,00]",
+    // _actsetWifiSSID :"[B5,06,01,11,01,T,i,m,e,T,e,c,C,l,o,u,B5,06,01,11,02,d,-,A,s,u,s,00,00,00,00,00]",
+    // _actclearWifiPassword :"[B5,07,00,00,00,00,00,00,00,00,00,00,00,00,00,00]",
+    // _actsetWifiPassword :"[B5,07,01,0C,01,e,p,i,c,a,m,e,r,a,@,9,B5,07,01,0C,02,9,00,00,00,00,00,00,00,00,00,00]",
+    _actclearDateTime: "[B5,08,00,00,00,00,00,00,00,00,00,00,00,00,00,00]",
+    _actsetDateTime: "[B5,08,01,yy,MM,dd,DD,hh,mm,ss,00,08,00,00,00,00]",
+    // _actenableFCU : "[B5,09,01,12,00,00,00,00,00,00,00,00,00,00,00,00]",
+    // _actdisableFCU :"[B5,09,00,00,00,00,00,00,00,00,00,00,00,00,00,00]"
+  };
 
   List<int> bLE2cmd = [-95, 21, 44, -27, -27, -58, -80, 92, -97];
   String _serviceUUID =
@@ -68,8 +108,32 @@ class BleObj {
   String disableFCU = "[B5,09,00,00,00,00,00,00,00,00,00,00,00,00,00,00]";
 
 //getter
+  get actionsList {
+    return [
+      _actUnlock,
+      _actLock,
+      _actSiren,
+      _actSirenOff,
+      _actSetDoorConfig,
+      _actClearSiren,
+      _actSetSiren,
+      // _actclearSchedule ,
+      // _actsetSchedule ,
+      // _actclearHoliday ,
+      // _actsetHoliday ,
+      // _actclearWifiSSID ,
+      // _actsetWifiSSID ,
+      // _actclearWifiPassword ,
+      // _actsetWifiPassword ,
+      _actclearDateTime,
+      _actsetDateTime,
+      // _actenableFCU ,
+      // _actdisableFCU
+    ];
+  }
+
   BluetoothDevice get selectedDevice {
-    return bleDeviceSelected;
+    return _selectedDevice;
   }
 
   get isConnected {
@@ -92,17 +156,13 @@ class BleObj {
     return devices;
   }
 
-  get actionsList {
-    return [_actUnlock, actLock, actSiren, actSirenOff];
-  }
-
   get actUnlock {
     return _actUnlock;
   }
 
 //setter
   void setSelectedDevice(BluetoothDevice device) {
-    bleDeviceSelected = device;
+    _selectedDevice = device;
   }
 
 //Constructor
@@ -146,7 +206,7 @@ class BleObj {
       });
     }
     Timer(Duration(seconds: scanDuration), () {
-      completer.complete(devices);
+      completer.complete(true);
       scanSub.cancel();
       _isScanning = false;
     });
@@ -159,11 +219,11 @@ class BleObj {
     if (_isConnecting) {
       Fluttertoast.showToast(
           msg: "Please wait , Bluetooh is connecting to " +
-              bleDeviceSelected.name);
+              _selectedDevice.name);
       completer.complete();
     } else if (!_isConnected) {
       Fluttertoast.showToast(msg: "Connecting to " + device.name);
-      bleDeviceSelected = device;
+      _selectedDevice = device;
       _isConnecting = true;
       startListening();
       connectDevice().then((val) {
@@ -171,9 +231,9 @@ class BleObj {
         completer.complete(true);
         getDeviceService();
       });
-    } else if (device.name == bleDeviceSelected.name && _isConnected) {
+    } else if (device.name == _selectedDevice.name && _isConnected) {
       Fluttertoast.showToast(
-          msg: "Already connected to " + bleDeviceSelected.name);
+          msg: "Already connected to " + _selectedDevice.name);
       completer.complete();
     } else {
       disconnect();
@@ -189,7 +249,7 @@ class BleObj {
   }
 
   void getDeviceService() {
-    if (bleDeviceSelected != null && _isConnected) {
+    if (_selectedDevice != null && _isConnected) {
       getBleService().then((services) {
         selectedBleService =
             services.firstWhere((s) => (s.uuid.toString() == _serviceUUID));
@@ -211,10 +271,18 @@ class BleObj {
     } else {
       Fluttertoast.showToast(msg: "Sending Action to Device...");
       _isWritingChar = true;
-      writeCharacteristic(getCmd(action)).then((result) {
+
+      List<int> listToBeWrite = [];
+      if (action == _actBle2) {
+        listToBeWrite = bLE2cmd;
+      } else {
+        listToBeWrite = getCmd(action);
+      }
+
+      writeCharacteristic(listToBeWrite).then((result) {
         _isWritingChar = false;
         c.complete(result);
-        Fluttertoast.showToast(msg: "Done Sending Action");
+        Fluttertoast.showToast(msg: "Success Sending Action : " + result);
       });
     }
 
@@ -231,15 +299,26 @@ class BleObj {
 
   Future getBleService() async {
     var comp = new Completer();
-    bleDeviceSelected.discoverServices().then((services) {
+    _selectedDevice.discoverServices().then((services) {
       bleService = services;
       comp.complete(bleService);
     });
     return comp.future;
   }
 
+  void readNotifcation() async {
+    if (selectedBleService != null) {
+      for (BluetoothCharacteristic c in selectedBleService.characteristics) {
+        if (c.uuid.toString() == _notificationUUID) {
+          List<int> value = await c.read();
+          print(value);
+        }
+      }
+    }
+  }
+
   void startListening() {
-    bleSub = bleDeviceSelected.state.listen((onData) {
+    bleSub = _selectedDevice.state.listen((onData) {
       if (onData.index != currentState) {
         currentState = onData.index;
         switch (onData.index) {
@@ -282,10 +361,12 @@ class BleObj {
 
   bool disconnect() {
     if (_isConnected || _isConnecting) {
-      bleDeviceSelected.disconnect();
+      _selectedDevice.disconnect();
       bleSub.cancel();
-      Fluttertoast.showToast(
-          msg: "Disconnected from " + bleDeviceSelected.name);
+      Fluttertoast.showToast(msg: "Disconnected from " + _selectedDevice.name);
+      selectedbleChar = null;
+      selectedBleService = null;
+      _selectedDevice = null;
       _isConnected = false;
       _isConnecting = false;
       _isWritingChar = false;
@@ -323,108 +404,115 @@ class BleObj {
   List<int> getCmd(String action) {
     String actionKey = "";
     print(action);
-    switch (action) {
-      case "BLE2":
-        {
-          return bLE2cmd;
-        }
-        break;
-      case "Unlock Gate":
-        {
-          actionKey = unlockDoor;
-        }
-        break;
-      case "Lock Gate":
-        {
-          actionKey = lockDoor;
-        }
-        break;
-      case "Siren On":
-        {
-          actionKey = sirenOn;
-        }
-        break;
-      case "Siren Off":
-        {
-          actionKey = sirenOff;
-        }
-    }
+
+    actionKey = _actionKeyItems[action];
     actionKey = actionKey.substring(1, actionKey.length - 1);
 
-    List<String> newCmd = [];
+    List<int> newCmd = [];
     List<String> key = actionKey.split(",").map((val) => val.trim()).toList();
 
     for (String i in key) {
       switch (i) {
         case "yy":
           {
-            newCmd.add(getYear());
+            newCmd.add(int.parse(getYear(), radix: 16));
+            //newCmd.add(getYear());
           }
           break;
         case "MM":
           {
-            newCmd.add(getMonth());
+            //newCmd.add(getMonth());
+            newCmd.add(int.parse(getMonth(), radix: 16));
           }
           break;
         case "dd":
           {
-            newCmd.add(getDate());
+            //newCmd.add(getDate());
+            newCmd.add(int.parse(getDate(), radix: 16));
           }
           break;
         case "hh":
           {
-            newCmd.add(getHour());
+            //newCmd.add(getHour());
+            newCmd.add(int.parse(getHour(), radix: 16));
           }
           break;
         case "mm":
           {
-            newCmd.add(getMinute());
+            //newCmd.add(getMinute());
+            newCmd.add(int.parse(getMinute(), radix: 16));
+          }
+          break;
+        case "ss":
+          {
+            newCmd.add(int.parse(getSecond(), radix: 16));
+          }
+          break;
+        case "DD":
+          {
+            newCmd.add(int.parse(getDayofWeek(), radix: 16));
           }
           break;
         default:
           {
-            print(i);
-            newCmd.add(i);
+            print(hex.decode(i));
+            newCmd.add(int.parse(i, radix: 16));
           }
       }
     }
-    Encrypted result = encryptor.encrypt(newCmd.toString(), iv: iv);
-    print("Encryeted string is like this : " + result.bytes.toString());
-    return result.bytes;
+    Uint8List result = encrypt(Uint8List.fromList(newCmd));
+    print("result is :" + result.toString());
+    return result;
   }
 
-  static Uint8List _createUint8ListFromHexString(String hex) {
+  Uint8List encrypt(Uint8List data) {
+    KeyParameter key =
+        KeyParameter(createUint8ListFromHexString(_encryptionKey));
+    ParametersWithIV params =
+        ParametersWithIV(key, createUint8ListFromHexString(_encryptionIV));
+    CBCBlockCipher cipher = CBCBlockCipher(AESFastEngine());
+    cipher.init(true, params);
+    return cipher.process(data);
+  }
+
+  //Helper
+
+  static Uint8List createUint8ListFromHexString(String hex) {
     var result = new Uint8List(hex.length ~/ 2);
     for (var i = 0; i < hex.length; i += 2) {
       var num = hex.substring(i, i + 2);
       var byte = int.parse(num, radix: 16);
       result[i ~/ 2] = byte;
     }
+
     return result;
   }
 
   static String getYear() {
-    String year = DateTime.now().year.toString();
-    return year.substring(year.length - 2, year.length);
+    return DateTime.now().year.toString();
   }
 
   static String getMonth() {
-    String month = "0" + DateTime.now().month.toString();
-    return month.substring(month.length - 2, month.length);
+    return DateTime.now().month.toString();
   }
 
   static String getDate() {
-    String date = "0" + DateTime.now().day.toString();
-    return date.substring(date.length - 2, date.length);
+    return DateTime.now().day.toString();
   }
 
   static String getHour() {
-    String hh = "0" + DateTime.now().hour.toString();
-    return hh.substring(hh.length - 2, hh.length);
+    return DateTime.now().hour.toString();
   }
 
-  String getMinute() {
-    String mm = "0" + DateTime.now().minute.toString();
-    return mm.substring(mm.length - 2, mm.length);
+  static String getMinute() {
+    return DateTime.now().minute.toString();
+  }
+
+  static String getSecond() {
+    return DateTime.now().second.toString();
+  }
+
+  static String getDayofWeek() {
+    return DateTime.now().weekday.toString();
   }
 }

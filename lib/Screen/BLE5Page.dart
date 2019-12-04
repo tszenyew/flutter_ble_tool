@@ -5,9 +5,6 @@ import 'package:flutter_blue/flutter_blue.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_ble_tool/Model/BLEController.dart';
-import 'package:flutter_ble_tool/Screen/BLE2Page.dart';
-
-Function updateMsgText;
 
 class BLE5Controller extends StatefulWidget {
   @override
@@ -145,11 +142,11 @@ class PageBLE5 extends State<BLE5Controller> {
                       child: Text(
                         "Disconnect",
                         style: TextStyle(
-                            color: obj.isConnected
+                            color: obj.isConnected || obj.isConnecting
                                 ? Colors.black
                                 : Colors.black12),
                       ),
-                      onPressed: obj.isConnected
+                      onPressed: obj.isConnected || obj.isConnecting
                           ? () {
                               disconnect();
                             }
@@ -173,10 +170,10 @@ class PageBLE5 extends State<BLE5Controller> {
                         ),
                       ),
                       onPressed: (obj.isWritingChar || !obj.isConnected)
-                          ? () {
-                              obj.getCmd(action);
-                            }
+                          ? null
+                            //(){obj.getCmd(action);}
                           : () {
+                              //obj.getCmd(action);
                               sendUserAction();
                             },
                     ),
@@ -200,7 +197,6 @@ class PageBLE5 extends State<BLE5Controller> {
   //function
   @override
   void initState() {
-    updateMsgText = updateMsg;
     super.initState();
   }
 
@@ -236,7 +232,11 @@ class PageBLE5 extends State<BLE5Controller> {
   void startScanning(BuildContext context) {
     updateMsg("Scanning for Device...");
     obj.startScan().then((result) {
-      updateMsg("Num of devices : " + result.length.toString());
+      if (!result) {
+        updateMsg("Disconnected");
+      } else {
+        updateMsg("Num of devices : " + obj.getDeviceList().length.toString());
+      }
     });
     setState(() {});
   }
@@ -250,11 +250,13 @@ class PageBLE5 extends State<BLE5Controller> {
 
   void connectDevice(int pos) {
     var device = bleDevices[pos];
-    updateMsgText("Connecting to " + device.name + "...");
+    updateMsg("Connecting to " + device.name + "...");
     obj.connectToDevice(device).then((result) {
-      updateMsgText("Connected to " + device.name);
       if (result) {
+        updateMsg("Connected to " + device.name);
         listenNow();
+      } else {
+        updateMsg("Unable to connected to " + device.name);
       }
     });
     setState(() {});
@@ -263,7 +265,7 @@ class PageBLE5 extends State<BLE5Controller> {
   void listenNow() {
     bleSub = obj.selectedDevice.state.listen((status) {
       if (status.index == 0) {
-        updateMsgText("Disconnected");
+        updateMsg("Disconnected");
         bleSub.cancel();
       }
     });
