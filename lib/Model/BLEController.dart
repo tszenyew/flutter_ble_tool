@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:pointycastle/export.dart';
@@ -177,20 +178,16 @@ class BleObj {
   }
 
 //start Scan
-  Future startScan() {
+  Future startScan() async{
     Completer completer = new Completer();
-    if (!isAvailable) {
-      isBLEAvailable().then((isAvai) {
-        completer.complete(isAvai);
-      });
-      return completer.future;
-    }
-    if (!isEnable) {
-      isBLEEnable().then((isOn) {
-        completer.complete(isOn);
-      });
-      return completer.future;
-    }
+      if (await isBLEAvailable() == false){
+       completer.complete(isAvailable);
+       return completer.future;
+      }
+      if (await isBLEEnable() == false){
+        completer.complete(isEnable);
+       return completer.future;
+      }
     if (!_isScanning) {
       _isScanning = true;
       flutterBlue.startScan(timeout: Duration(seconds: scanDuration));
@@ -210,7 +207,7 @@ class BleObj {
       scanSub.cancel();
       _isScanning = false;
     });
-    return completer.future;
+    return await completer.future;
   }
 
 //Connect to Device
@@ -516,3 +513,4 @@ class BleObj {
     return DateTime.now().weekday.toString();
   }
 }
+

@@ -20,6 +20,7 @@ class PageBLE2 extends State<BLE2Controller> {
   BleObj obj = BleObj.internal();
   bool _resting = false;
   List<BluetoothDevice> bleDevices;
+  int _selectedIndex = -1;
   StreamSubscription<BluetoothDeviceState> bleSub;
 
   //build
@@ -63,17 +64,18 @@ class PageBLE2 extends State<BLE2Controller> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Container(
-                height: 300,
+              Expanded(
                 child: ListView.builder(
                   itemCount: bleDevices.length,
                   itemBuilder: (BuildContext context, int pos) {
                     return GestureDetector(
                       onTap: () {
-                        connectDevice(pos);
+                        setState(() {
+                        _selectedIndex = pos;
+                        });
                       },
                       child: Card(
-                        color: Colors.white,
+                        color: (_selectedIndex == pos) ? Colors.blueAccent : Colors.white,
                         elevation: 2,
                         child: ListTile(
                           title: Text(bleDevices[pos].name),
@@ -182,6 +184,7 @@ class PageBLE2 extends State<BLE2Controller> {
   }
 
   void startScanning(BuildContext context) {
+    _selectedIndex = -1;
     updateMsg("Scanning for Device...");
     obj.startScan().then((result) {
       if (!result) {

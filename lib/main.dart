@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_tool/Screen/BLE2Page.dart';
 import 'package:flutter_ble_tool/Screen/BLE5Page.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 void main() => runApp(MyApp());
 
@@ -31,30 +32,34 @@ class MyHomePage extends StatefulWidget {
 
 class PageViewState extends State<MyHomePage> {
   PageController _controller = PageController(initialPage: 0, keepPage: true);
-
+  var _selected = 0;
   List<Widget> allPages = [BLE2Controller(), BLE5Controller()];
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       appBar: AppBar(
         title: Text("Flutter BLE Tool"),
-        actions: <Widget>[
-          ToggleButtons(
-            children: <Widget>[Text("BLE 2"), Text("BLE 5")],
-            onPressed: (index) {
-              setState(() {
-                _controller.jumpToPage(index);
-              });
-            },
-            isSelected: <bool>[false, false],
-          )
-        ],
       ),
       body: PageView.builder(
         controller: _controller,
         itemBuilder: (context, index) => allPages[index],
         itemCount: allPages.length,
+        onPageChanged: (pos){
+          setState(() {
+            _selected = pos;
+          });
+        },
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selected,
+        onTap: (pos ){
+          setState(() {
+            _selected = pos;
+            _controller.jumpToPage(pos);
+          });
+        },
+        items: [ BottomNavigationBarItem(title: Text("BLE 2"), icon: Icon(FontAwesomeIcons.bluetooth ), backgroundColor: Colors.deepOrange),
+        BottomNavigationBarItem(title: Text("BLE 5"), icon: Icon(FontAwesomeIcons.bluetooth ) , backgroundColor: Colors.deepPurple)],
       ),
     );
   }

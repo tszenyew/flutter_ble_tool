@@ -61,7 +61,7 @@ packages:
       name: flutter_blue
       url: "https://pub.dartlang.org"
     source: hosted
-    version: "0.6.2"
+    version: "0.6.3+1"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -122,7 +122,7 @@ packages:
       name: protobuf
       url: "https://pub.dartlang.org"
     source: hosted
-    version: "0.14.4"
+    version: "1.0.1"
   quiver:
     dependency: transitive
     description:

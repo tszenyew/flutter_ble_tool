@@ -63,8 +63,7 @@ class PageBLE5 extends State<BLE5Controller> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
-              Container(
-                height: 300,
+              Expanded(
                 child: ListView.builder(
                   itemCount: bleDevices.length,
                   itemBuilder: (BuildContext context, int pos) {
