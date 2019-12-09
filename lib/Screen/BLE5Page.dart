@@ -21,6 +21,7 @@ class PageBLE5 extends State<BLE5Controller> {
   String action = "Lock Gate";
   bool _resting = false;
   List<BluetoothDevice> bleDevices;
+  int _selectedIndex = -1;
   StreamSubscription<BluetoothDeviceState> bleSub;
 
   //build
@@ -69,10 +70,14 @@ class PageBLE5 extends State<BLE5Controller> {
                   itemBuilder: (BuildContext context, int pos) {
                     return GestureDetector(
                       onTap: () {
-                        connectDevice(pos);
+                        setState(() {
+                          _selectedIndex = pos;
+                        });
                       },
                       child: Card(
-                        color: Colors.white,
+                        color: _selectedIndex == pos
+                            ? Colors.blueAccent
+                            : Colors.white,
                         elevation: 2,
                         child: ListTile(
                           title: Text(bleDevices[pos].name),
@@ -163,14 +168,14 @@ class PageBLE5 extends State<BLE5Controller> {
                       child: Text(
                         "Send Action",
                         style: TextStyle(
-                          color: (obj.isWritingChar || !obj.isConnected)
+                          color: (obj.isWritingChar || _selectedIndex == -1)
                               ? Colors.black12
                               : Colors.black,
                         ),
                       ),
-                      onPressed: (obj.isWritingChar || !obj.isConnected)
+                      onPressed: (obj.isWritingChar || _selectedIndex == -1)
                           ? null
-                            //(){obj.getCmd(action);}
+                          //(){obj.getCmd(action);}
                           : () {
                               //obj.getCmd(action);
                               sendUserAction();
@@ -213,17 +218,44 @@ class PageBLE5 extends State<BLE5Controller> {
     new Timer(const Duration(seconds: 2), () => _resting = false);
   }
 
+  // void sendUserAction() {
+  //   if (_resting) {
+  //     Fluttertoast.showToast(
+  //         msg: "Please wait 2 seconds before sending another action");
+  //   } else {
+  //     restNow();
+  //     //obj.getCmd(action);
+  //     updateMsg("Sending Action to device...");
+  //     obj.sendAction(action).then((result) {
+  //       updateMsg("Done");
+  //     });
+  //     setState(() {});
+  //   }
+  // }
+
   void sendUserAction() {
+    var device = bleDevices[_selectedIndex];
     if (_resting) {
       Fluttertoast.showToast(
           msg: "Please wait 2 seconds before sending another action");
     } else {
       restNow();
-      //obj.getCmd(action);
       updateMsg("Sending Action to device...");
-      obj.sendAction(action).then((result) {
-        updateMsg("Done");
+      obj.connectToDevice(device).then((result) {
+        if (result) {
+          listenNow();
+          obj.sendAction(action).then((r) {
+            if (r) {
+              updateMsg("Done");
+            } else {
+              updateMsg("Fail");
+            }
+          });
+        } else {
+          updateMsg("Unable to connect device");
+        }
       });
+
       setState(() {});
     }
   }
@@ -247,19 +279,19 @@ class PageBLE5 extends State<BLE5Controller> {
     }
   }
 
-  void connectDevice(int pos) {
-    var device = bleDevices[pos];
-    updateMsg("Connecting to " + device.name + "...");
-    obj.connectToDevice(device).then((result) {
-      if (result) {
-        updateMsg("Connected to " + device.name);
-        listenNow();
-      } else {
-        updateMsg("Unable to connected to " + device.name);
-      }
-    });
-    setState(() {});
-  }
+  // void connectDevice(int pos) {
+  //   var device = bleDevices[pos];
+  //   updateMsg("Connecting to " + device.name + "...");
+  //   obj.connectToDevice(device).then((result) {
+  //     if (result) {
+  //       updateMsg("Connected to " + device.name);
+  //       listenNow();
+  //     } else {
+  //       updateMsg("Unable to connected to " + device.name);
+  //     }
+  //   });
+  //   setState(() {});
+  // }
 
   void listenNow() {
     bleSub = obj.selectedDevice.state.listen((status) {

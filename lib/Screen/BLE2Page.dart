@@ -71,11 +71,13 @@ class PageBLE2 extends State<BLE2Controller> {
                     return GestureDetector(
                       onTap: () {
                         setState(() {
-                        _selectedIndex = pos;
+                          _selectedIndex = pos;
                         });
                       },
                       child: Card(
-                        color: (_selectedIndex == pos) ? Colors.blueAccent : Colors.white,
+                        color: (_selectedIndex == pos)
+                            ? Colors.blueAccent
+                            : Colors.white,
                         elevation: 2,
                         child: ListTile(
                           title: Text(bleDevices[pos].name),
@@ -123,12 +125,12 @@ class PageBLE2 extends State<BLE2Controller> {
                       child: Text(
                         "Unlock/Lock Gate",
                         style: TextStyle(
-                          color: (obj.isWritingChar || !obj.isConnected)
+                          color: (obj.isWritingChar || _selectedIndex == -1)
                               ? Colors.black12
                               : Colors.black,
                         ),
                       ),
-                      onPressed: (obj.isWritingChar || !obj.isConnected)
+                      onPressed: (obj.isWritingChar || _selectedIndex == -1)
                           ? null
                           : () {
                               sendUnlockAction();
@@ -169,20 +171,6 @@ class PageBLE2 extends State<BLE2Controller> {
     new Timer(const Duration(seconds: 2), () => _resting = false);
   }
 
-  void sendUnlockAction() {
-    if (_resting) {
-      Fluttertoast.showToast(
-          msg: "Please wait 2 seconds before sending another action");
-    } else {
-      restNow();
-      updateMsg("Sending Action to device...");
-      obj.sendAction("BLE2").then((result) {
-        updateMsg("Done");
-      });
-      setState(() {});
-    }
-  }
-
   void startScanning(BuildContext context) {
     _selectedIndex = -1;
     updateMsg("Scanning for Device...");
@@ -203,16 +191,44 @@ class PageBLE2 extends State<BLE2Controller> {
     }
   }
 
-  void connectDevice(int pos) {
-    var device = bleDevices[pos];
-    updateMsg("Connecting to " + device.name + "...");
-    obj.connectToDevice(device).then((result) {
-      updateMsg("Connected to " + device.name);
-      if (result) {
-        listenNow();
-      }
-    });
-    setState(() {});
+  // void connectDevice(int pos) {
+  //   var device = bleDevices[pos];
+
+  //   updateMsg("Connecting to " + device.name + "...");
+  //   obj.connectToDevice(device).then((result) {
+  //     updateMsg("Connected to " + device.name);
+  //     if (result) {
+  //       listenNow();
+  //     }
+  //   });
+  //   setState(() {});
+  // }
+
+  void sendUnlockAction() {
+    var device = bleDevices[_selectedIndex];
+    if (_resting) {
+      Fluttertoast.showToast(
+          msg: "Please wait 2 seconds before sending another action");
+    } else {
+      restNow();
+      updateMsg("Sending Action to device...");
+      obj.connectToDevice(device).then((result) {
+        if (result) {
+          listenNow();
+          obj.sendAction("BLE2").then((r) {
+            if (r) {
+              updateMsg("Done");
+            } else {
+              updateMsg("Fail");
+            }
+          });
+        } else {
+          updateMsg("Unable to connect device");
+        }
+      });
+
+      setState(() {});
+    }
   }
 
   void listenNow() {

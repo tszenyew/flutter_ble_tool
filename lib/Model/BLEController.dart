@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
 import 'package:flutter_blue/flutter_blue.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:pointycastle/export.dart';
 import 'package:convert/convert.dart';
-import 'dart:convert';
 
 class BleObj {
   //var
@@ -25,6 +23,7 @@ class BleObj {
   static BluetoothService selectedBleService;
   static List<BluetoothCharacteristic> bleCharacteristic;
   static BluetoothCharacteristic selectedbleChar;
+  static BluetoothCharacteristic notificationChar;
   static int currentState = -1;
   static final BleObj _bleObj = new BleObj.internal();
   //var encryptor = Encrypter(AES(Key.fromBase16(_encryptionKey), mode: AESMode.cbc));
@@ -178,16 +177,16 @@ class BleObj {
   }
 
 //start Scan
-  Future startScan() async{
+  Future startScan() async {
     Completer completer = new Completer();
-      if (await isBLEAvailable() == false){
-       completer.complete(isAvailable);
-       return completer.future;
-      }
-      if (await isBLEEnable() == false){
-        completer.complete(isEnable);
-       return completer.future;
-      }
+    if (await isBLEAvailable() == false) {
+      completer.complete(isAvailable);
+      return completer.future;
+    }
+    if (await isBLEEnable() == false) {
+      completer.complete(isEnable);
+      return completer.future;
+    }
     if (!_isScanning) {
       _isScanning = true;
       flutterBlue.startScan(timeout: Duration(seconds: scanDuration));
@@ -195,11 +194,11 @@ class BleObj {
         // do something with scan result
         devices = scanResult
             .where((item) => item.device.name.trim().isNotEmpty)
-            .toSet()
-            .toList()
             .map((item) {
-          return item.device;
-        }).toList();
+              return item.device;
+            })
+            .toSet()
+            .toList();
       });
     }
     Timer(Duration(seconds: scanDuration), () {
@@ -222,11 +221,12 @@ class BleObj {
       Fluttertoast.showToast(msg: "Connecting to " + device.name);
       _selectedDevice = device;
       _isConnecting = true;
-      startListening();
+      startListeningState();
       connectDevice().then((val) {
         Fluttertoast.showToast(msg: "Connected to " + device.name);
-        completer.complete(true);
-        getDeviceService();
+        getDeviceService().then((sucess) {
+          completer.complete(sucess);
+        });
       });
     } else if (device.name == _selectedDevice.name && _isConnected) {
       Fluttertoast.showToast(
@@ -241,11 +241,12 @@ class BleObj {
     return completer.future;
   }
 
-  Future connectDevice() async {
+  Future connectDevice() {
     return selectedDevice.connect();
   }
 
-  void getDeviceService() {
+  Future getDeviceService() {
+    Completer c = new Completer();
     if (_selectedDevice != null && _isConnected) {
       getBleService().then((services) {
         selectedBleService =
@@ -253,11 +254,16 @@ class BleObj {
         if (selectedBleService != null) {
           selectedbleChar = selectedBleService.characteristics
               .firstWhere((c) => (c.uuid.toString() == _characteristicUUID));
+          notificationChar = selectedBleService.characteristics
+              .firstWhere((n) => (n.uuid.toString() == _notificationUUID));
+          c.complete(true);
         }
       });
     } else {
       Fluttertoast.showToast(msg: "Device is not connected");
+      c.complete(false);
     }
+    return c.future;
   }
 
   Future sendAction(String action) {
@@ -278,8 +284,10 @@ class BleObj {
 
       writeCharacteristic(listToBeWrite).then((result) {
         _isWritingChar = false;
+        disconnect();
         c.complete(result);
-        Fluttertoast.showToast(msg: "Success Sending Action : " + result);
+        Fluttertoast.showToast(
+            msg: "Success Sending Action : " + result.toString());
       });
     }
 
@@ -288,8 +296,27 @@ class BleObj {
 
   Future writeCharacteristic(List<int> cmd) {
     Completer c = new Completer();
-    selectedbleChar.write(cmd).then((sucess) {
-      c.complete(sucess);
+    StreamSubscription<List<int>> notiSub;
+    bool done = false;
+    selectedbleChar.setNotifyValue(true).then((value) {
+      notiSub = selectedbleChar.value.listen((val) {
+        Timer(Duration(seconds: 3), () {
+          if (!done) {
+            c.complete(false);
+            notiSub.cancel();
+          }
+        });
+        if (val.length > 0) {
+          print("notification updated , door unlocked status : " +
+              (val[4] != 0).toString());
+          if (val[4] != 0) {
+            done = true;
+            c.complete(true);
+            notiSub.cancel();
+          }
+        }
+      });
+      selectedbleChar.write(cmd);
     });
     return c.future;
   }
@@ -303,18 +330,7 @@ class BleObj {
     return comp.future;
   }
 
-  void readNotifcation() async {
-    if (selectedBleService != null) {
-      for (BluetoothCharacteristic c in selectedBleService.characteristics) {
-        if (c.uuid.toString() == _notificationUUID) {
-          List<int> value = await c.read();
-          print(value);
-        }
-      }
-    }
-  }
-
-  void startListening() {
+  void startListeningState() {
     bleSub = _selectedDevice.state.listen((onData) {
       if (onData.index != currentState) {
         currentState = onData.index;
@@ -458,7 +474,7 @@ class BleObj {
       }
     }
     Uint8List result = encrypt(Uint8List.fromList(newCmd));
-    print("result is :" + result.toString());
+    //print("result is :" + result.toString());
     return result;
   }
 
@@ -513,4 +529,3 @@ class BleObj {
     return DateTime.now().weekday.toString();
   }
 }
-
